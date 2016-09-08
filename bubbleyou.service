@@ -1,0 +1,17 @@
+[Unit]
+Description=bubblestack youtube streamer
+After=syslog.target network.target
+Conflicts=s
+
+[Service]
+Type=fork
+PIDFile=/var/run/bubbleyou.pid
+ExecStart=/usr/sbin/bubbleyou start
+ExecReload=/usr/sbin/bubbleyou restart
+ExecStop=/usr/sbin/bubbleyou stop
+Restart=on-abort
+
+
+
+[Install]
+WantedBy=multi-user.target

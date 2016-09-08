@@ -1,0 +1,131 @@
+#!/bin/sh
+
+###
+# bubbleyou - ffmpeg to youtube live streamer
+# bubblestack.io
+# Nika Chkhikvishvili
+# License MIT
+###
+
+
+# get confog file
+source /etc/bubblestack/bubbleyou.conf
+
+start_streaming() {
+   
+if [[ "$capture" == "yes" ]]; then 
+ 
+
+capture_str=$( cat <<EOF
+ -vcodec copy -map 0 -f segment -segment_time $capture_lenght -segment_format \
+mp4 -strftime 1  $capture_path/%Y-%m-%d_%H-%M-%S.mp4 
+EOF
+)
+   else 
+    capture_str=""
+fi
+
+# capture & stream
+       (setsid ffmpeg -nostdin -rtsp_transport tcp -i "$source_stream" -re -ar 44100 \
+-ac 2 -acodec pcm_s16le -f s16le -ac 2 -i /dev/zero -f h264 -preset $quality \
+-r $fps -vcodec copy  -acodec aac -b:v $bit_rate -ab 128k -g 50 -strict experimental \
+-f flv  "$youtube_url/$rtmp_key" $capture_str \
+-loglevel $log_level 2>$log_file;)&
+
+
+  # get ffmpeg PID
+     ffmpeg_pid=$!
+     echo $ffmpeg_pid > $pid_file
+     exit 0
+
+echo started
+}
+
+start() {
+
+# check if already running
+if [  -f $pid_file ] ; then
+      if   ps -p  $(cat $pid_file) > /dev/null 
+          then  
+          echo bubbleyou is already running.
+          exit 1
+      else 
+       rm -rf $pid_file
+      # start
+       start_streaming 
+   fi
+fi 
+# start 
+start_streaming
+
+}
+
+stop() {
+  # just terminate 
+  kill -TERM $(cat $pid_file  2>&1 ) >/dev/null 2>&1
+  rm -rf $pid_file 
+}
+
+
+
+status() {
+
+state=$(pgrep --pidfile $pid_file -c 2>/dev/nulll )
+
+ if [[ $state -lt 1 ]]; then
+   status_msg="bubbleyou is not running."
+   status_code=1
+ else
+   status_msg="bubbleyou is running."
+   status_code=0
+   
+ fi
+ 
+}
+
+
+
+
+check_live_status() {
+# call status function inside
+status
+
+live_state=$(curl -s "https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=$channel_id&type=video&eventType=live&key=$google_api_key" | grep -c '"liveBroadcastContent": "live"')
+
+if [[ $status_code -ne 0 ]] && [[ $livestate -ne 1 ]]; then 
+    echo "process is running but Youtube Live is not ready, or we have connection problems" 
+    exit 1
+   else
+    video_id=$(curl -s "https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=$channel_id&type=video&eventType=live&key=$google_api_key" | grep "videoId" | awk '{print $2}'  | sed -e 's/"//g') 
+    echo "We are Live on Youtube: https://www.youtube.com/watch?v=$video_id"
+
+fi
+}
+
+
+
+
+case "$1" in
+  start)
+    start
+    ;;
+  stop)
+    stop
+    ;;
+  status)
+   status
+   echo $status_msg
+    ;;
+  check)
+   check_live_status
+    ;;
+  restart)
+    stop
+    start
+    ;;
+  *)
+    echo "Usage: $0 {start|stop|status|check|restart}" >&2
+    exit 1
+    ;;
+esac
+
