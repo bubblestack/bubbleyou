@@ -19,6 +19,7 @@ $ bubbleyou {start|stop|status|check|restart}
 ```bash
 $ bubbleyou check
 We are Live on Youtube: https://www.youtube.com/watch?v=kolFLCQ_K48
+```
 
 ### License:
 bubbleyou is part of bubblestack project and is released under the [MIT License](http://www.opensource.org/licenses/MIT).
